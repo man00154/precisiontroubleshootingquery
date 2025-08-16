@@ -2,55 +2,61 @@
 import os
 import streamlit as st
 from langchain.chat_models import ChatOpenAI
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
 from langchain.agents import Tool, initialize_agent
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.schema import Document  # Import Document for FAISS
+from langchain.schema import Document
+import requests
+
+# --- Load API Keys from Streamlit secrets ---
+GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+
+if not GEMINI_API_KEY:
+    st.error("Please set GEMINI_API_KEY in Streamlit secrets.")
+    st.stop()
+
+if not OPENAI_API_KEY:
+    st.error("Please set OPENAI_API_KEY in Streamlit secrets.")
+    st.stop()
 
 # --- Gemini API Setup ---
 MODEL_NAME = "gemini-2.0-flash-lite"
 API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent"
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")  # Needed for embeddings
 
-if not GEMINI_API_KEY:
-    st.error("Please set GEMINI_API_KEY in environment variables or Streamlit secrets.")
-    st.stop()
-
-if not OPENAI_API_KEY:
-    st.error("Please set OPENAI_API_KEY in environment variables or Streamlit secrets.")
-    st.stop()
-
-# --- Simple RAG Setup (Lightweight) ---
+# --- App UI ---
 st.title("MANISH - DATA CENTER Precision Troubleshooting Assistant")
 
 uploaded_file = st.file_uploader("Upload historical incident reports (txt/csv)", type=["txt", "csv"])
 user_query = st.text_input("Describe your problem:")
 
 if uploaded_file and user_query:
-    # Read file
+    # Read file content
     content = uploaded_file.read().decode("utf-8")
-    
-    # Simple text splitting
+
+    # Split text into chunks
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     texts = splitter.split_text(content)
-    
-    # Convert texts to Document objects for FAISS
+
+    # Convert chunks to Document objects
     docs = [Document(page_content=t) for t in texts]
-    
-    # Create lightweight FAISS vectorstore
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small", openai_api_key=OPENAI_API_KEY)
+
+    # Initialize embeddings with OpenAI API key
+    embeddings = OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        openai_api_key=OPENAI_API_KEY
+    )
+
+    # Create FAISS vectorstore
     vectorstore = FAISS.from_documents(docs, embeddings)
-    
-    # Define a retrieval function
+
+    # Define retrieval function
     def retrieve_relevant(query):
         results = vectorstore.similarity_search(query, k=3)
         return " ".join([r.page_content for r in results])
-    
-    # Agentic AI Tool
+
+    # Agentic AI tool
     def troubleshoot_tool(query):
         context = retrieve_relevant(query)
         prompt = f"""
@@ -59,8 +65,6 @@ if uploaded_file and user_query:
         Context: {context}
         User Query: {query}
         """
-        # Simple API call to Gemini
-        import requests, json
         headers = {"Authorization": f"Bearer {GEMINI_API_KEY}"}
         payload = {
             "prompt": prompt,
@@ -72,7 +76,7 @@ if uploaded_file and user_query:
             return response.json().get("candidates", [{}])[0].get("content", "No response")
         else:
             return f"Error: {response.status_code} - {response.text}"
-    
+
     # Initialize agent
     agent_tools = [
         Tool(
@@ -81,9 +85,14 @@ if uploaded_file and user_query:
             description="Use this tool to generate step-by-step resolution plans for data center incidents."
         )
     ]
-    
-    agent = initialize_agent(agent_tools, llm=ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0), agent="zero-shot-react-description")
-    
+
+    agent = initialize_agent(
+        agent_tools,
+        llm=ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0),
+        agent="zero-shot-react-description"
+    )
+
+    # Run agent
     if st.button("Get Resolution Plan"):
         with st.spinner("Generating expert troubleshooting plan..."):
             result = agent.run(user_query)
