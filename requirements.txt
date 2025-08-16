@@ -1,6 +1,7 @@
 streamlit
 langchain
-faiss-cpu
 openai
+faiss-cpu
 requests
 langchain-community
+pydantic
