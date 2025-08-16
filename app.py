@@ -5,13 +5,13 @@ from langchain.chat_models import ChatOpenAI
 from langchain.agents import Tool, initialize_agent
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import OpenAIEmbeddings  # Updated import
+from langchain_community.embeddings import OpenAIEmbeddings
 from langchain.schema import Document
 import requests
 
 # --- Load API Keys from Streamlit secrets ---
-GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY")
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY")
 
 if not GEMINI_API_KEY:
     st.error("Please set GEMINI_API_KEY in Streamlit secrets.")
@@ -42,14 +42,18 @@ if uploaded_file and user_query:
     # Convert chunks to Document objects
     docs = [Document(page_content=t) for t in texts]
 
-    # Initialize embeddings with OpenAI API key
+    # Initialize embeddings explicitly with API key
     embeddings = OpenAIEmbeddings(
         model="text-embedding-3-small",
         openai_api_key=OPENAI_API_KEY
     )
 
     # Create FAISS vectorstore
-    vectorstore = FAISS.from_documents(docs, embeddings)
+    try:
+        vectorstore = FAISS.from_documents(docs, embeddings)
+    except Exception as e:
+        st.error(f"Error creating vectorstore: {e}")
+        st.stop()
 
     # Define retrieval function
     def retrieve_relevant(query):
@@ -82,7 +86,7 @@ if uploaded_file and user_query:
         Tool(
             name="TroubleshootTool",
             func=troubleshoot_tool,
-            description="Use this tool to generate step-by-step resolution plans for data center incidents."
+            description="Generate step-by-step resolution plans for data center incidents."
         )
     ]
 
@@ -95,6 +99,9 @@ if uploaded_file and user_query:
     # Run agent
     if st.button("Get Resolution Plan"):
         with st.spinner("Generating expert troubleshooting plan..."):
-            result = agent.run(user_query)
-        st.subheader("Step-by-Step Resolution Plan")
-        st.write(result)
+            try:
+                result = agent.run(user_query)
+                st.subheader("Step-by-Step Resolution Plan")
+                st.write(result)
+            except Exception as e:
+                st.error(f"Error running agent: {e}")
