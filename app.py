@@ -7,7 +7,8 @@ from langchain.prompts import PromptTemplate
 from langchain.agents import Tool, initialize_agent
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings.openai import OpenAIEmbeddings  # Fixed import
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.schema import Document  # Import Document for FAISS
 
 # --- Gemini API Setup ---
 MODEL_NAME = "gemini-2.0-flash-lite"
@@ -35,11 +36,14 @@ if uploaded_file and user_query:
     
     # Simple text splitting
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-    docs = splitter.split_text(content)
+    texts = splitter.split_text(content)
+    
+    # Convert texts to Document objects for FAISS
+    docs = [Document(page_content=t) for t in texts]
     
     # Create lightweight FAISS vectorstore
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small", openai_api_key=OPENAI_API_KEY)  # Fixed
-    vectorstore = FAISS.from_texts(docs, embeddings)
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-small", openai_api_key=OPENAI_API_KEY)
+    vectorstore = FAISS.from_documents(docs, embeddings)
     
     # Define a retrieval function
     def retrieve_relevant(query):
