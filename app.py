@@ -7,15 +7,20 @@ from langchain.prompts import PromptTemplate
 from langchain.agents import Tool, initialize_agent
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings  # lightweight embeddings for demo
+from langchain.embeddings.openai import OpenAIEmbeddings  # Fixed import
 
 # --- Gemini API Setup ---
 MODEL_NAME = "gemini-2.0-flash-lite"
 API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")  # Needed for embeddings
 
 if not GEMINI_API_KEY:
     st.error("Please set GEMINI_API_KEY in environment variables or Streamlit secrets.")
+    st.stop()
+
+if not OPENAI_API_KEY:
+    st.error("Please set OPENAI_API_KEY in environment variables or Streamlit secrets.")
     st.stop()
 
 # --- Simple RAG Setup (Lightweight) ---
@@ -33,7 +38,7 @@ if uploaded_file and user_query:
     docs = splitter.split_text(content)
     
     # Create lightweight FAISS vectorstore
-    embeddings = OpenAIEmbeddings()
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-small", openai_api_key=OPENAI_API_KEY)  # Fixed
     vectorstore = FAISS.from_texts(docs, embeddings)
     
     # Define a retrieval function
