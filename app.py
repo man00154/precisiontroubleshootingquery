@@ -5,7 +5,7 @@ from langchain.chat_models import ChatOpenAI
 from langchain.agents import Tool, initialize_agent
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain_community.embeddings import OpenAIEmbeddings  # Updated import
 from langchain.schema import Document
 import requests
 
