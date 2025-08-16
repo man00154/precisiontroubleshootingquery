@@ -19,10 +19,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy app code
 COPY app.py .
-
-# Set environment variables (replace with actual keys or use Streamlit secrets)
-ENV GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
-ENV OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
+COPY historical_incidents.csv .
+COPY .streamlit/.secrets.toml .streamlit/secrets.toml
 
 # Expose Streamlit port
 EXPOSE 8501
