@@ -17,9 +17,8 @@ RUN apt-get update && apt-get install -y \
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy app code, CSV, and Streamlit secrets
+# Copy app code and Streamlit secrets
 COPY app.py .
-COPY historical_incidents.csv .
 COPY .streamlit/.secrets.toml .streamlit/secrets.toml
 
 # Expose Streamlit port
