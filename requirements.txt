@@ -6,3 +6,5 @@ requests
 langchain-community
 pydantic
 tiktoken
+langchain-google-genai
+
