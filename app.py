@@ -1,5 +1,6 @@
 # app.py
 import os
+import asyncio
 import streamlit as st
 from langchain.agents import Tool, initialize_agent, AgentType
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -14,6 +15,12 @@ GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     st.error("Please set GEMINI_API_KEY in Streamlit secrets.")
     st.stop()
+
+# --- Ensure asyncio loop exists (Python 3.13 stricter rules) ---
+try:
+    asyncio.get_running_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
 
 # --- App UI ---
 st.title("MANISH - DATA CENTER Precision Troubleshooting Assistant")
