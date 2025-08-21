@@ -8,4 +8,5 @@ pydantic
 tiktoken
 langchain-google-genai
 google-api-core
+grpcio
 
