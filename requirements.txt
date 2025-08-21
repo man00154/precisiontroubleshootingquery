@@ -7,4 +7,5 @@ langchain-community
 pydantic
 tiktoken
 langchain-google-genai
+google-api-core
 
