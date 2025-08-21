@@ -1,29 +1,19 @@
 # app.py
 import os
 import streamlit as st
-from langchain.chat_models import ChatOpenAI
-from langchain.agents import Tool, initialize_agent
-from langchain_community.vectorstores import FAISS
+from langchain.agents import Tool, initialize_agent, AgentType
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import OpenAIEmbeddings
 from langchain.schema import Document
-import requests
+from langchain_community.vectorstores import FAISS
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 
-# --- Load API Keys from Streamlit secrets ---
+# --- Load API Key from Streamlit secrets ---
+# NOTE: The API key should be named GEMINI_API_KEY in your Streamlit secrets
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY")
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY")
 
 if not GEMINI_API_KEY:
     st.error("Please set GEMINI_API_KEY in Streamlit secrets.")
     st.stop()
-
-if not OPENAI_API_KEY:
-    st.error("Please set OPENAI_API_KEY in Streamlit secrets.")
-    st.stop()
-
-# --- Gemini API Setup ---
-MODEL_NAME = "gemini-2.0-flash-lite"
-API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent"
 
 # --- App UI ---
 st.title("MANISH - DATA CENTER Precision Troubleshooting Assistant")
@@ -42,65 +32,65 @@ if uploaded_file and user_query:
     # Convert chunks to Document objects
     docs = [Document(page_content=t) for t in texts]
 
-    # Initialize embeddings explicitly with API key
-    embeddings = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        openai_api_key=OPENAI_API_KEY
+    # Initialize embeddings with the Gemini API key
+    embeddings = GoogleGenerativeAIEmbeddings(
+        model="models/embedding-001",
+        google_api_key=GEMINI_API_KEY
     )
 
-    # Create FAISS vectorstore
+    # Create FAISS vectorstore from the documents and embeddings
     try:
         vectorstore = FAISS.from_documents(docs, embeddings)
     except Exception as e:
         st.error(f"Error creating vectorstore: {e}")
         st.stop()
 
-    # Define retrieval function
+    # Define a retrieval function that will be used by the agent as a tool
     def retrieve_relevant(query):
+        """
+        Retrieves the most relevant historical incident reports based on a user query.
+        """
         results = vectorstore.similarity_search(query, k=3)
         return " ".join([r.page_content for r in results])
 
-    # Agentic AI tool
-    def troubleshoot_tool(query):
-        context = retrieve_relevant(query)
-        prompt = f"""
-        You are a virtual expert for data center troubleshooting.
-        Using the following historical context, provide a step-by-step resolution plan:
-        Context: {context}
-        User Query: {query}
-        """
-        headers = {"Authorization": f"Bearer {GEMINI_API_KEY}"}
-        payload = {
-            "prompt": prompt,
-            "temperature": 0.2,
-            "max_output_tokens": 500
-        }
-        response = requests.post(API_URL, headers=headers, json=payload)
-        if response.status_code == 200:
-            return response.json().get("candidates", [{}])[0].get("content", "No response")
-        else:
-            return f"Error: {response.status_code} - {response.text}"
+    # Initialize the Gemini LLM for the agent
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-1.5-flash",
+        temperature=0,
+        google_api_key=GEMINI_API_KEY
+    )
 
-    # Initialize agent
+    # Define the agent tool
     agent_tools = [
         Tool(
             name="TroubleshootTool",
-            func=troubleshoot_tool,
-            description="Generate step-by-step resolution plans for data center incidents."
+            func=retrieve_relevant,
+            description="A tool that retrieves relevant historical incident reports for a given query."
         )
     ]
 
+    # Initialize the agent
     agent = initialize_agent(
         agent_tools,
-        llm=ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0),
-        agent="zero-shot-react-description"
+        llm,
+        agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+        verbose=True,
+        handle_parsing_errors=True
     )
-
-    # Run agent
+    
+    # Run agent after the user clicks the button
     if st.button("Get Resolution Plan"):
         with st.spinner("Generating expert troubleshooting plan..."):
             try:
-                result = agent.run(user_query)
+                # The agent will now use the retrieve_relevant tool to get context
+                # and then use the Gemini LLM to formulate the final answer.
+                result = agent.run(
+                    f"""
+                    You are a virtual expert for data center troubleshooting.
+                    Using the historical context, provide a step-by-step resolution plan for this user query:
+                    {user_query}
+                    """
+                )
                 st.subheader("Step-by-Step Resolution Plan")
                 st.write(result)
             except Exception as e:
